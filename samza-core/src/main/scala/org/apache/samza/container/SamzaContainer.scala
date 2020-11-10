@@ -587,6 +587,7 @@ object SamzaContainer extends Logging {
           collector = taskCollectors.get(taskName).get,
           offsetManager = offsetManager,
           storageManager = storageManager,
+          containerStorageManager = containerStorageManager,
           tableManager = tableManager,
           systemStreamPartitions = JavaConversions.setAsJavaSet(taskSSPs -- taskSideInputSSPs),
           exceptionHandler = TaskInstanceExceptionHandler(taskInstanceMetrics.get(taskName).get, taskConfig),
