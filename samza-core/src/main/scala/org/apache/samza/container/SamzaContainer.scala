@@ -496,7 +496,7 @@ object SamzaContainer extends Logging {
 
     val timerExecutor = Executors.newSingleThreadScheduledExecutor
 
-    var taskStorageManagers : Map[TaskName, TaskStorageBackupManager] = Map()
+    var taskStorageManagers : Map[TaskName, TaskBackupManager] = Map()
 
     val taskInstanceMetrics: Map[TaskName, TaskInstanceMetrics] = taskModels.map(taskModel => {
       (taskModel.getTaskName, new TaskInstanceMetrics("TaskName-%s" format taskModel.getTaskName))
@@ -540,9 +540,7 @@ object SamzaContainer extends Logging {
 
     storeWatchPaths.addAll(containerStorageManager.getStoreDirectoryPaths)
 
-    val stateStorageBackendFactory = {
-      ReflectionUtil.getObj(storageConfig.getStateRestoreBackupManager, classOf[StateBackendFactory])
-    }
+    val stateStorageBackendFactory = ReflectionUtil.getObj(storageConfig.getStateBackupManager, classOf[StateBackendFactory])
 
     // Create taskInstances
     val taskInstances: Map[TaskName, TaskInstance] = taskModels
@@ -565,8 +563,8 @@ object SamzaContainer extends Logging {
       val taskSideInputSSPs = sideInputStoresToSSPs.values.flatMap(_.asScala).toSet
       info ("Got task side input SSPs: %s" format taskSideInputSSPs)
 
-      val taskBackupManager = stateStorageBackendFactory.getBackupManager(
-        taskModel, containerStorageManager.getAllStores(taskName), config)
+      val taskBackupManager = stateStorageBackendFactory.getBackupManager(jobModel, containerModel,
+        taskModel, containerStorageManager.getAllStores(taskName), config, new SystemClock)
 
       val commitManager = new TaskStorageCommitManager(taskBackupManager)
 
