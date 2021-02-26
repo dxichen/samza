@@ -295,7 +295,7 @@ class KafkaCheckpointManager(checkpointSpec: KafkaStreamSpec,
           val checkpoint = try {
             if (readCheckpointV2Enabled) {
               statefulCheckpointMsgSerde.fromBytes(checkpointBytes)
-            } else {
+            } else { // !readCheckpointV2Enabled && CHECKPOINT_KEY_TYPE
               checkpointMsgSerde.fromBytes(checkpointBytes)
             }
           } catch {
