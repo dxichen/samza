@@ -24,7 +24,7 @@ import java.util
 
 import com.google.common.collect.{ImmutableMap, ImmutableSet}
 import org.apache.samza.Partition
-import org.apache.samza.checkpoint.{Checkpoint, CheckpointId, CheckpointManager}
+import org.apache.samza.checkpoint.{CheckpointId, CheckpointManager, CheckpointV1}
 import org.apache.samza.config._
 import org.apache.samza.container.{SamzaContainerMetrics, TaskInstanceMetrics, TaskName}
 import org.apache.samza.context.{ContainerContext, JobContext}
@@ -919,7 +919,7 @@ class TaskStorageManagerBuilder extends MockitoSugar {
 
     val mockCheckpointManager = Mockito.mock(classOf[CheckpointManager])
     when(mockCheckpointManager.readLastCheckpoint(any(classOf[TaskName])))
-      .thenReturn(new Checkpoint(new util.HashMap[SystemStreamPartition, String]()))
+      .thenReturn(new CheckpointV1(new util.HashMap[SystemStreamPartition, String]()))
 
     val mockSSPMetadataCache = Mockito.mock(classOf[SSPMetadataCache])
 

@@ -250,6 +250,7 @@ public class StorageConfig extends MapConfig {
     return getLong(minCompactLagConfigName, getDefaultChangelogMinCompactionLagMs());
   }
 
+  // TODO HIGH dchen change everything to State Backend Factory
   public String getStateBackupManager() {
     return get(STATE_BACKUP_MANAGER_FACTORY, DEFAULT_STATE_BACKUP_MANAGER_FACTORY);
   }

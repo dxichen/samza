@@ -21,10 +21,10 @@ package org.apache.samza.serializers
 
 import org.apache.samza.util.Logging
 import java.util
-import org.apache.samza.checkpoint.Checkpoint
+import org.apache.samza.checkpoint.CheckpointV1
 import org.apache.samza.container.TaskName
 import org.apache.samza.system.SystemStreamPartition
-import org.apache.samza.{SamzaException, Partition}
+import org.apache.samza.{Partition, SamzaException}
 import org.codehaus.jackson.map.ObjectMapper
 import scala.collection.JavaConverters._
 import org.codehaus.jackson.`type`.TypeReference
@@ -35,8 +35,8 @@ import org.codehaus.jackson.`type`.TypeReference
  * then interfere with JSON's decoding of the overall map.  We'll sidestep the whole issue by turning the
  * map into a list[String] of (System, Stream, Partition, Offset) serializing that.
  */
-class CheckpointSerde extends Serde[Checkpoint] with Logging {
-  import CheckpointSerde._
+class CheckpointV1Serde extends Serde[CheckpointV1] with Logging {
+  import CheckpointV1Serde._
   // TODO: Elucidate the CheckpointSerde relationship to Serde. Should Serde also have keyTo/FromBytes? Should
   // we just take CheckpointSerde here as interface and have this be JSONCheckpointSerde?
   // TODO: Add more tests.  This class currently only has direct test and is mainly tested by the other checkpoint managers
@@ -50,7 +50,7 @@ class CheckpointSerde extends Serde[Checkpoint] with Logging {
   // and offset.  Jackson can't automatically serialize the SSP since it's not a POJO and this avoids
   // having to wrap it another class while maintaing readability.
 
-  def fromBytes(bytes: Array[Byte]): Checkpoint = {
+  def fromBytes(bytes: Array[Byte]): CheckpointV1 = {
     try {
       val jMap = jsonMapper.readValue(bytes, classOf[util.HashMap[String, util.HashMap[String, String]]])
 
@@ -70,7 +70,7 @@ class CheckpointSerde extends Serde[Checkpoint] with Logging {
 
       val cpMap = jMap.values.asScala.map(deserializeJSONMap).toMap
 
-      new Checkpoint(cpMap.asJava)
+      new CheckpointV1(cpMap.asJava)
     }catch {
       case e : Exception =>
         warn("Exception while deserializing checkpoint: " + e)
@@ -79,8 +79,8 @@ class CheckpointSerde extends Serde[Checkpoint] with Logging {
     }
   }
 
-  def toBytes(checkpoint: Checkpoint): Array[Byte] = {
-    val offsets = checkpoint.getInputOffsets
+  def toBytes(checkpoint: CheckpointV1): Array[Byte] = {
+    val offsets = checkpoint.getOffsets
     val asMap = new util.HashMap[String, util.HashMap[String, String]](offsets.size())
 
     offsets.asScala.foreach {
@@ -111,6 +111,6 @@ class CheckpointSerde extends Serde[Checkpoint] with Logging {
   }
 }
 
-object CheckpointSerde {
+object CheckpointV1Serde {
   val PARTITION_MAPPING_TYPEREFERENCE = new TypeReference[util.HashMap[TaskName, java.lang.Integer]]() {}
 }

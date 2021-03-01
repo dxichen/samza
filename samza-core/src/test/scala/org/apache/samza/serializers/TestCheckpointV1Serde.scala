@@ -22,7 +22,7 @@ package org.apache.samza.serializers
 import java.util
 
 import org.apache.samza.Partition
-import org.apache.samza.checkpoint.Checkpoint
+import org.apache.samza.checkpoint.{CheckpointV1}
 import org.apache.samza.container.TaskName
 import org.apache.samza.system.SystemStreamPartition
 import org.junit.Assert._
@@ -30,16 +30,16 @@ import org.junit.Test
 
 import scala.collection.JavaConverters._
 
-class TestCheckpointSerde {
+class TestCheckpointV1Serde {
   @Test
   def testExactlyOneOffset {
-    val serde = new CheckpointSerde
+    val serde = new CheckpointV1Serde
     var offsets = Map[SystemStreamPartition, String]()
     val systemStreamPartition = new SystemStreamPartition("test-system", "test-stream", new Partition(777))
     offsets += systemStreamPartition -> "1"
-    val deserializedOffsets = serde.fromBytes(serde.toBytes(new Checkpoint(offsets.asJava)))
-    assertEquals("1", deserializedOffsets.getInputOffsets.get(systemStreamPartition))
-    assertEquals(1, deserializedOffsets.getInputOffsets.size)
+    val deserializedOffsets = serde.fromBytes(serde.toBytes(new CheckpointV1(offsets.asJava)))
+    assertEquals("1", deserializedOffsets.getOffsets.get(systemStreamPartition))
+    assertEquals(1, deserializedOffsets.getOffsets.size)
   }
 
   @Test
@@ -49,7 +49,7 @@ class TestCheckpointSerde {
     mapping.put(new TaskName("Dougal"), 1)
     mapping.put(new TaskName("Jack"), 2)
 
-    val checkpointSerde = new CheckpointSerde
+    val checkpointSerde = new CheckpointV1Serde
     val asBytes = checkpointSerde.changelogPartitionMappingToBytes(mapping)
     val backToMap = checkpointSerde.changelogPartitionMappingFromBytes(asBytes)
 
@@ -60,7 +60,7 @@ class TestCheckpointSerde {
   @Test
   def testNullCheckpointSerde: Unit = {
     val checkpointBytes = null.asInstanceOf[Array[Byte]]
-    val checkpointSerde = new CheckpointSerde
+    val checkpointSerde = new CheckpointV1Serde
     val checkpoint = checkpointSerde.fromBytes(checkpointBytes)
     assertNull(checkpoint)
   }

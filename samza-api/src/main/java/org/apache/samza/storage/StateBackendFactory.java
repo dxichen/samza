@@ -45,5 +45,7 @@ public interface StateBackendFactory {
 
   TaskStorageAdmin getAdmin();
 
+  // TODO HIGH dchen check why this needs to be part of this interface
+  // Can the backup and restore managers do the serde for SCM payloads themselves?
   StateCheckpointPayloadSerde getStateCheckpointPayloadSerde();
 }

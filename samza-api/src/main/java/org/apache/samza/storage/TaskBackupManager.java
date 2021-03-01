@@ -42,10 +42,12 @@ import org.apache.samza.checkpoint.StateCheckpointMarker;
 public interface TaskBackupManager {
 
   /**
-   * Initiates the TaskBackupManager instance
+   * Initializes the TaskBackupManager instance
    * @param checkpoint Last recorded checkpoint from the CheckpointManager or null if no checkpoint was found
    */
-  default void start(Checkpoint checkpoint) {}
+  // TODO HIGH dchen why is this default while stop isn't?
+  // TODO HIGH dchen explictly mark and document as nullaable and verify all impls handle it correctly
+  default void init(Checkpoint checkpoint) {}
 
   /**
    * Commit operation that is synchronous to processing
@@ -60,19 +62,24 @@ public interface TaskBackupManager {
    * @param stateCheckpointMarkers The map of storename to checkpoint makers returned by the snapshot
    * @return The future of storename to checkpoint map of the uploaded local store
    */
-  CompletableFuture<Map<String, StateCheckpointMarker>> upload(CheckpointId checkpointId, Map<String, StateCheckpointMarker> stateCheckpointMarkers);
+  CompletableFuture<Map<String, StateCheckpointMarker>> upload(CheckpointId checkpointId,
+      Map<String, StateCheckpointMarker> stateCheckpointMarkers);
 
   /**
    * Persist the state locally to the file system
    * @param checkpointId The id of the checkpoint to be committed
    * @param stateCheckpointMarkers Uploaded storename to checkpoints markers to be persisted locally
    */
+  // TODO HIGH dchen fix misleading method name + javadoc + logs. This should only be writing the SCM / OFFSET-V2 files to disk,
+  // this is too late to "persist the state" (store flush), which should have happened in snapshot.
   void persistToFilesystem(CheckpointId checkpointId, Map<String, StateCheckpointMarker> stateCheckpointMarkers);
 
   /**
    * Cleanup any local or remote state for obsolete checkpoint information that are older than checkpointId
    * @param checkpointId The id of the latest successfully committed checkpoint
    */
+  // TODO HIGH dchen can we pass SCMs here as well so that impls don't have to cache that information after upload
+  //  or during startup?
   void cleanUp(CheckpointId checkpointId);
 
   /**

@@ -20,7 +20,7 @@
 package org.apache.samza.checkpoint;
 
 public interface StateCheckpointPayloadSerde<T extends StateCheckpointMarker> {
-
+  // TODO HIGH dchen add javadocs
   String serialize(T payload);
 
   T deserialize(String data);

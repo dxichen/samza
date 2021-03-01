@@ -24,14 +24,14 @@ import kafka.common.KafkaException;
 import kafka.common.TopicAlreadyMarkedForDeletionException;
 import org.apache.samza.Partition;
 import org.apache.samza.SamzaException;
-import org.apache.samza.checkpoint.Checkpoint;
+import org.apache.samza.checkpoint.CheckpointV1;
 import org.apache.samza.config.Config;
 import org.apache.samza.config.JobConfig;
 import org.apache.samza.container.TaskName;
 import org.apache.samza.container.grouper.stream.GroupByPartitionFactory;
 import org.apache.samza.metrics.MetricsRegistry;
-import org.apache.samza.serializers.CheckpointSerde;
-import org.apache.samza.serializers.StatefulCheckpointSerde;
+import org.apache.samza.serializers.CheckpointV1Serde;
+import org.apache.samza.serializers.CheckpointV2Serde;
 import org.apache.samza.system.IncomingMessageEnvelope;
 import org.apache.samza.system.StreamValidationException;
 import org.apache.samza.system.SystemAdmin;
@@ -117,7 +117,7 @@ public class TestKafkaCheckpointManagerJava {
 
     // wire up an exception throwing serde with the checkpointmanager
     KafkaCheckpointManager checkpointManager = new KafkaCheckpointManager(checkpointSpec, factory,
-        true, mockConfig, mock(MetricsRegistry.class), new ExceptionThrowingCheckpointSerde(), null, new KafkaCheckpointLogKeySerde());
+        true, mockConfig, mock(MetricsRegistry.class), new ExceptionThrowingCheckpointV1Serde(), null, new KafkaCheckpointLogKeySerde());
     checkpointManager.register(TASK1);
     checkpointManager.start();
 
@@ -143,7 +143,7 @@ public class TestKafkaCheckpointManagerJava {
 
     // wire up an exception throwing serde with the checkpointmanager
     KafkaCheckpointManager checkpointManager = new KafkaCheckpointManager(checkpointSpec, factory,
-        false, mockConfig, mock(MetricsRegistry.class), new ExceptionThrowingCheckpointSerde(), null,
+        false, mockConfig, mock(MetricsRegistry.class), new ExceptionThrowingCheckpointV1Serde(), null,
         new ExceptionThrowingCheckpointKeySerde());
     checkpointManager.register(TASK1);
     checkpointManager.start();
@@ -168,7 +168,7 @@ public class TestKafkaCheckpointManagerJava {
     SystemAdmin mockAdmin = newAdmin(oldestOffset, "1");
     SystemFactory factory = newFactory(mock(SystemProducer.class), mockConsumer, mockAdmin);
     KafkaCheckpointManager checkpointManager = new KafkaCheckpointManager(checkpointSpec, factory,
-        true, mockConfig, mock(MetricsRegistry.class), new CheckpointSerde(), new StatefulCheckpointSerde(),
+        true, mockConfig, mock(MetricsRegistry.class), new CheckpointV1Serde(), new CheckpointV2Serde(),
         new KafkaCheckpointLogKeySerde());
     checkpointManager.register(TASK1);
 
@@ -208,14 +208,14 @@ public class TestKafkaCheckpointManagerJava {
     SystemFactory factory = newFactory(mock(SystemProducer.class), mockConsumer, mockAdmin);
 
     KafkaCheckpointManager checkpointManager = new KafkaCheckpointManager(checkpointSpec, factory,
-        true, mockConfig, mock(MetricsRegistry.class), new CheckpointSerde(), new StatefulCheckpointSerde(),
+        true, mockConfig, mock(MetricsRegistry.class), new CheckpointV1Serde(), new CheckpointV2Serde(),
         new KafkaCheckpointLogKeySerde());
     checkpointManager.register(TASK1);
     checkpointManager.start();
 
     // check that all ten messages are read, and the checkpoint is the newest message
-    Checkpoint checkpoint = checkpointManager.readLastCheckpoint(TASK1);
-    Assert.assertEquals(checkpoint.getInputOffsets(), ImmutableMap.of(ssp, Integer.toString(newestOffset)));
+    CheckpointV1 checkpoint = (CheckpointV1) checkpointManager.readLastCheckpoint(TASK1);
+    Assert.assertEquals(checkpoint.getOffsets(), ImmutableMap.of(ssp, Integer.toString(newestOffset)));
   }
 
   /**
@@ -264,15 +264,15 @@ public class TestKafkaCheckpointManagerJava {
         new KafkaCheckpointLogKey("checkpoint", taskName, GROUPER_FACTORY_CLASS);
     KafkaCheckpointLogKeySerde checkpointKeySerde = new KafkaCheckpointLogKeySerde();
 
-    Checkpoint checkpointMsg = new Checkpoint(ImmutableMap.of(ssp, offset));
-    CheckpointSerde checkpointMsgSerde = new CheckpointSerde();
+    CheckpointV1 checkpointMsg = new CheckpointV1(ImmutableMap.of(ssp, offset));
+    CheckpointV1Serde checkpointMsgSerde = new CheckpointV1Serde();
 
     return new IncomingMessageEnvelope(CHECKPOINT_SSP, offset, checkpointKeySerde.toBytes(checkpointKey),
         checkpointMsgSerde.toBytes(checkpointMsg));
   }
 
-  private static class ExceptionThrowingCheckpointSerde extends CheckpointSerde {
-    public Checkpoint fromBytes(byte[] bytes) {
+  private static class ExceptionThrowingCheckpointV1Serde extends CheckpointV1Serde {
+    public CheckpointV1 fromBytes(byte[] bytes) {
       throw new KafkaException("exception");
     }
   }

@@ -24,12 +24,12 @@ import java.util.Properties
 import kafka.integration.KafkaServerTestHarness
 import kafka.utils.{CoreUtils, TestUtils}
 import com.google.common.collect.ImmutableMap
-import org.apache.samza.checkpoint.Checkpoint
+import org.apache.samza.checkpoint.{Checkpoint, CheckpointV1}
 import org.apache.samza.config._
 import org.apache.samza.container.TaskName
 import org.apache.samza.container.grouper.stream.GroupByPartitionFactory
 import org.apache.samza.metrics.MetricsRegistry
-import org.apache.samza.serializers.CheckpointSerde
+import org.apache.samza.serializers.CheckpointV1Serde
 import org.apache.samza.system._
 import org.apache.samza.system.kafka.{KafkaStreamSpec, KafkaSystemFactory}
 import org.apache.samza.util.ScalaJavaUtil.JavaOptionals
@@ -48,8 +48,8 @@ class TestKafkaCheckpointManager extends KafkaServerTestHarness {
   val sspGrouperFactoryName = classOf[GroupByPartitionFactory].getCanonicalName
 
   val ssp = new SystemStreamPartition("kafka", "topic", new Partition(0))
-  val checkpoint1 = new Checkpoint(ImmutableMap.of(ssp, "offset-1"))
-  val checkpoint2 = new Checkpoint(ImmutableMap.of(ssp, "offset-2"))
+  val checkpoint1 = new CheckpointV1(ImmutableMap.of(ssp, "offset-1"))
+  val checkpoint2 = new CheckpointV1(ImmutableMap.of(ssp, "offset-2"))
   val taskName = new TaskName("Partition 0")
   var config: Config = null
 
@@ -88,7 +88,7 @@ class TestKafkaCheckpointManager extends KafkaServerTestHarness {
 
     checkPointManager.register(taskName)
     checkPointManager.start
-    checkPointManager.writeCheckpoint(taskName, new Checkpoint(ImmutableMap.of()))
+    checkPointManager.writeCheckpoint(taskName, new CheckpointV1(ImmutableMap.of()))
     checkPointManager.stop()
 
     // Verifications after the test
@@ -142,7 +142,7 @@ class TestKafkaCheckpointManager extends KafkaServerTestHarness {
     try {
       checkPointManager.register(taskName)
       checkPointManager.start
-      checkPointManager.writeCheckpoint(taskName, new Checkpoint(ImmutableMap.of()))
+      checkPointManager.writeCheckpoint(taskName, new CheckpointV1(ImmutableMap.of()))
     } catch {
       case _: SamzaException => info("Got SamzaException as expected.")
       case unexpectedException: Throwable => fail("Expected SamzaException but got %s" format unexpectedException)
@@ -175,7 +175,7 @@ class TestKafkaCheckpointManager extends KafkaServerTestHarness {
     // create topic with the wrong number of partitions
     createTopic(checkpointTopic, 8, new KafkaConfig(config).getCheckpointTopicProperties())
     val failOnTopicValidation = false
-    val kcm = createKafkaCheckpointManager(checkpointTopic, new CheckpointSerde, failOnTopicValidation)
+    val kcm = createKafkaCheckpointManager(checkpointTopic, new CheckpointV1Serde, failOnTopicValidation)
     kcm.register(taskName)
     kcm.createResources()
     kcm.start()
@@ -251,7 +251,7 @@ class TestKafkaCheckpointManager extends KafkaServerTestHarness {
       .build())
   }
 
-  private def createKafkaCheckpointManager(cpTopic: String, serde: CheckpointSerde = new CheckpointSerde, failOnTopicValidation: Boolean = true) = {
+  private def createKafkaCheckpointManager(cpTopic: String, serde: CheckpointV1Serde = new CheckpointV1Serde, failOnTopicValidation: Boolean = true) = {
     val kafkaConfig = new org.apache.samza.config.KafkaConfig(config)
     val props = kafkaConfig.getCheckpointTopicProperties()
     val systemName = kafkaConfig.getCheckpointSystem.getOrElse(

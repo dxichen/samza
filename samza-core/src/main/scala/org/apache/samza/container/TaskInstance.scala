@@ -24,7 +24,7 @@ import java.util.{Collections, Objects, Optional}
 import java.util.concurrent.ScheduledExecutorService
 
 import org.apache.samza.SamzaException
-import org.apache.samza.checkpoint.{Checkpoint, CheckpointId, OffsetManager, StateCheckpointMarker}
+import org.apache.samza.checkpoint.{Checkpoint, CheckpointId, CheckpointV1, CheckpointV2, OffsetManager, StateCheckpointMarker}
 import org.apache.samza.config.{Config, StreamConfig, TaskConfig}
 import org.apache.samza.context._
 import org.apache.samza.job.model.{JobModel, TaskModel}
@@ -105,6 +105,8 @@ class TaskInstance(
   override val intermediateStreams: java.util.Set[String] = JavaConverters.setAsJavaSetConverter(streamConfig.getStreamIds.filter(streamConfig.getIsIntermediateStream)).asJava
 
   val streamsToDeleteCommittedMessages: Set[String] = streamConfig.getStreamIds.filter(streamConfig.getDeleteCommittedMessages).map(streamConfig.getPhysicalName).toSet
+
+  val checkpointWriteVersions = new TaskConfig(config).getCheckpointWriteVersions
 
   def registerOffsets {
     debug("Registering offsets for taskName: %s" format taskName)
@@ -233,14 +235,8 @@ class TaskInstance(
   def commit {
     metrics.commits.inc
 
-    // Retrieve input checkpoints
-    val inputCheckpoint = offsetManager.buildCheckpoint(taskName)
-    val inputOffsets = if (inputCheckpoint != null)  {
-      trace("Got input offsets for taskName: %s as: %s" format(taskName, inputCheckpoint.getInputOffsets))
-      inputCheckpoint.getInputOffsets
-    } else {
-      new java.util.HashMap[SystemStreamPartition, String]()
-    }
+    val inputOffsets = offsetManager.getLastProcessedOffsets(taskName)
+    trace("Got input offsets for taskName: %s as: %s" format(taskName, inputOffsets))
 
     trace("Flushing producers for taskName: %s" format taskName)
     collector.flush
@@ -251,35 +247,46 @@ class TaskInstance(
     }
 
     val checkpointId = CheckpointId.create()
+
     // Perform state commit
     trace("Committing state stores for taskName: %s" format taskName)
     val stateCheckpointMarkers = commitManager.commit(taskName, checkpointId)
-    trace("Got newest state checkpoint markers for taskName: %s as: %s " format(taskName, stateCheckpointMarkers))
+    trace("Got state checkpoint markers for taskName: %s as: %s " format(taskName, stateCheckpointMarkers))
 
+    // TODO BLOCKER dchen where are the SCMs returned by KafkaBackupManagers being serialized as part of the
+    // input offsets for backwards compatibility? Previously they were being merged in the "allCheckpointOffsets" map
+    // which was used to create the Checkpoint#offsets map, now they are not being included anymore.
+    checkpointWriteVersions.foreach(checkpointWriteVersion => {
+      val checkpoint = if (checkpointWriteVersion == 1) {
+        new CheckpointV1(inputOffsets)
+      } else if (checkpointWriteVersion == 2) {
+        new CheckpointV2(checkpointId, inputOffsets, stateCheckpointMarkers)
+      } else {
+        throw new SamzaException("Unsupported checkpoint write version: " + checkpointWriteVersion)
+      }
 
-    val checkpoint = new Checkpoint(checkpointId, inputOffsets, stateCheckpointMarkers)
-    trace("Got combined checkpoint offsets for taskName: %s as: %s" format (taskName, checkpoint))
+      trace("Got combined checkpoint offsets for taskName: %s as: %s" format (taskName, checkpoint))
 
-    // Write input offsets and state checkpoint markers to the checkpoint topic atomically
-    offsetManager.writeCheckpoint(taskName, checkpoint)
+      // Write input offsets and state checkpoint markers to the checkpoint topic atomically
+      offsetManager.writeCheckpoint(taskName, checkpoint)
+    })
 
     // Perform cleanup on unused checkpoints
     trace("Cleaning up old checkpoint state for taskName: %s. Current checkpointId: %s" format (taskName, checkpointId))
     try {
+      // TODO BLOCKER dchen cleanup should also be called in init on container startup.
       commitManager.cleanUp(checkpointId)
     } catch {
-      case e: Exception => error("Failed to remove old checkpoints for task: %s. Current checkpointId: %s" format (taskName, checkpointId), e)
+      case e: Exception => error("Failed to remove old checkpoint state for task: %s. Current checkpointId: %s" format (taskName, checkpointId), e)
     }
 
-    if (inputCheckpoint != null) {
-      trace("Deleting committed input offsets for taskName: %s" format taskName)
-      inputCheckpoint.getInputOffsets.asScala
-        .filter { case (ssp, _) => streamsToDeleteCommittedMessages.contains(ssp.getStream) } // Only delete data of intermediate streams
-        .groupBy { case (ssp, _) => ssp.getSystem }
-        .foreach { case (systemName: String, offsets: Map[SystemStreamPartition, String]) =>
-          systemAdmins.getSystemAdmin(systemName).deleteMessages(offsets.asJava)
-        }
-    }
+    trace("Deleting committed input offsets from intermediate topics for taskName: %s" format taskName)
+    inputOffsets.asScala
+      .filter { case (ssp, _) => streamsToDeleteCommittedMessages.contains(ssp.getStream) } // Only delete data of intermediate streams
+      .groupBy { case (ssp, _) => ssp.getSystem }
+      .foreach { case (systemName: String, offsets: Map[SystemStreamPartition, String]) =>
+        systemAdmins.getSystemAdmin(systemName).deleteMessages(offsets.asJava)
+      }
   }
 
   def shutdownTask {

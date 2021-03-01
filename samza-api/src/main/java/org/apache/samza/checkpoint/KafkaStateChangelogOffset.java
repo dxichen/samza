@@ -25,6 +25,7 @@ import org.apache.samza.annotation.InterfaceStability;
 /**
  * Checkpointed changelog offset has the format: [checkpointId, offset], separated by a colon.
  */
+// TODO HIGH dchen use this when creating CheckpointV1 from KafkaSCM in TaskCommitManager
 @InterfaceStability.Unstable
 public class KafkaStateChangelogOffset {
   public static final String SEPARATOR = ":";

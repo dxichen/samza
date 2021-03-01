@@ -19,18 +19,38 @@
 
 package org.apache.samza.checkpoint.kafka;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.samza.Partition;
 import org.apache.samza.checkpoint.StateCheckpointPayloadSerde;
+import org.apache.samza.system.SystemStreamPartition;
 
 
 public class KafkaStateCheckpointPayloadSerde implements StateCheckpointPayloadSerde<KafkaStateCheckpointMarker> {
 
   @Override
   public String serialize(KafkaStateCheckpointMarker payload) {
+    // TODO HIGH dchen serialize explicitly, don't rely on toString for serialization
     return payload.toString();
   }
 
   @Override
   public KafkaStateCheckpointMarker deserialize(String data) {
-    return KafkaStateCheckpointMarker.fromString(data);
+    if (StringUtils.isBlank(data)) {
+      throw new IllegalArgumentException("Invalid KafkaStateCheckpointMarker format: " + data);
+    }
+    String[] payload = data.split(KafkaStateCheckpointMarker.SEPARATOR);
+    if (payload.length != 5) {
+      throw new IllegalArgumentException("Invalid KafkaStateCheckpointMarker argument count: " + data);
+    }
+    if (Short.parseShort(payload[0]) != KafkaStateCheckpointMarker.SCHEMA_VERSION) {
+      throw new IllegalArgumentException("Invalid KafkaStateCheckpointMarker schema version: " + data);
+    }
+    Partition partition = new Partition(Integer.parseInt(payload[3]));
+    String offset = null;
+    if (!"null".equals(payload[4])) {
+      offset = payload[4];
+    }
+
+    return new KafkaStateCheckpointMarker(new SystemStreamPartition(payload[1], payload[2], partition), offset);
   }
 }
